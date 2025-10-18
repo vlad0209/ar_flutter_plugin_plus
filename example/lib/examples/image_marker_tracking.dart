@@ -41,14 +41,16 @@ class _ImageMarkerTrackingState extends State<ImageMarkerTracking> {
     this.arLocationManager = arLocationManager;
 
     this.arSessionManager!.onInitialize(
-          showFeaturePoints: false,
-          showPlanes: true,
-          customPlaneTexturePath: "Images/triangle.png",
-          showWorldOrigin: true,
-          handleTaps: true,
-        );
+      showFeaturePoints: false,
+      showPlanes: true,
+      customPlaneTexturePath: "Images/triangle.png",
+      showWorldOrigin: true,
+      handleTaps: true,
+      trackingImagePaths: ["Images/augmented-images-earth.jpg"],
+    );
     this.arObjectManager!.onInitialize();
     this.arSessionManager!.onPlaneOrPointTap = onPlaneOrPointTapped;
+    this.arSessionManager!.onImageDetected = onImageDetected;
   }
 
   Future<void> onPlaneOrPointTapped(
@@ -91,6 +93,60 @@ class _ImageMarkerTrackingState extends State<ImageMarkerTracking> {
     } catch (e) {
       // nothing just no plane found
       log(e.toString());
+    }
+  }
+
+  void onImageDetected(String imageName, Matrix4 transformation) {
+    print("Image detected: $imageName");
+
+    // Convert transformation matrix to position
+    Vector3 position = transformation.getTranslation();
+    print("Image '$imageName' detected at position: $position");
+
+    // Automatically place an object on the detected image
+    placeObjectOnImage(imageName, transformation);
+  }
+
+  Future<void> placeObjectOnImage(
+      String imageName, Matrix4 transformation) async {
+    try {
+      // Remove any existing anchor and node
+      if (anchor != null) {
+        arAnchorManager!.removeAnchor(anchor!);
+      }
+      if (node != null) {
+        arObjectManager!.removeNode(node!);
+      }
+
+      // Create a new anchor at the image position
+      var imageAnchor = ARPlaneAnchor(transformation: transformation);
+
+      bool? didAddAnchor = await arAnchorManager!.addAnchor(imageAnchor);
+      if (didAddAnchor != null && didAddAnchor) {
+        anchor = imageAnchor;
+
+        // Create a 3D object to place on the image
+        var imageNode = ARNode(
+            type: NodeType.localGLB,
+            uri: "Models/realistic_crystal_blues_materials.glb",
+            scale: Vector3(0.1, 0.1, 0.1), // Smaller scale for image anchors
+            position: Vector3(0.0, 0.0, 0.0),
+            rotation: Vector4(1.0, 0.0, 0.0, 0.0));
+
+        bool? didAddNodeToAnchor =
+            await arObjectManager!.addNode(imageNode, planeAnchor: imageAnchor);
+
+        if (didAddNodeToAnchor != null && didAddNodeToAnchor) {
+          node = imageNode;
+          print("Successfully placed object on image: $imageName");
+        } else {
+          arSessionManager!.onError("Adding Node to Image Anchor failed");
+        }
+      } else {
+        arSessionManager!.onError("Adding Image Anchor failed");
+      }
+    } catch (e) {
+      print("Error placing object on image: $e");
     }
   }
 

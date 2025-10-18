@@ -337,11 +337,17 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
             }
         }
     
+        // Configure image tracking
+        if let trackingImagePaths = arguments["trackingImagePaths"] as? [String] {
+            setupImageTracking(imagePaths: trackingImagePaths)
+        }
+    
         // Update session configuration
         self.sceneView.session.run(configuration)
     }
 
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+        print("📍 iOS didAdd anchor: \(type(of: anchor))")
         
         if let planeAnchor = anchor as? ARPlaneAnchor{
             let plane = modelBuilder.makePlane(anchor: planeAnchor, flutterAssetFile: customPlaneTexturePath)
@@ -349,6 +355,12 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
             if (showPlanes) {
                 node.addChildNode(plane)
             }
+        }
+        
+        // Handle image anchors
+        if let imageAnchor = anchor as? ARImageAnchor {
+            print("🖼️ iOS: Image anchor added!")
+            handleImageDetection(imageAnchor: imageAnchor)
         }
     }
 
@@ -822,6 +834,63 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
         @unknown default:
             return "Unknown"
         }
+    }
+    
+    // MARK: - Image Tracking
+    
+    func setupImageTracking(imagePaths: [String]) {
+        var referenceImages = Set<ARReferenceImage>()
+        
+        for imagePath in imagePaths {
+            if let image = loadImageFromAssets(imagePath: imagePath) {
+                let imageName = URL(fileURLWithPath: imagePath).deletingPathExtension().lastPathComponent
+                
+                print("Loading image: \(imageName), size: \(image.size.width)x\(image.size.height)")
+                
+                // Create ARReferenceImage with a default physical width (you may want to make this configurable)
+                let physicalWidth: Float = 0.2 // 20cm default width - adjust based on your actual printed image size
+                let referenceImage = ARReferenceImage(image.cgImage!, orientation: .up, physicalWidth: CGFloat(physicalWidth))
+                referenceImage.name = imageName
+                
+                referenceImages.insert(referenceImage)
+                print("Successfully added reference image: \(imageName)")
+            } else {
+                print("Failed to load image: \(imagePath)")
+            }
+        }
+        
+        configuration.detectionImages = referenceImages
+        print("🖼️ iOS Image tracking configured with \(referenceImages.count) images")
+        print("Configuration detection images count: \(configuration.detectionImages?.count ?? 0)")
+        
+        // Print details about each configured image
+        if let detectionImages = configuration.detectionImages {
+            for (index, refImage) in detectionImages.enumerated() {
+                print("  Image \(index + 1): '\(refImage.name ?? "unnamed")' - \(refImage.physicalSize.width)m x \(refImage.physicalSize.height)m")
+            }
+        }
+    }
+    
+    func loadImageFromAssets(imagePath: String) -> UIImage? {
+        let key = FlutterDartProject.lookupKey(forAsset: imagePath)
+        return UIImage(named: key, in: Bundle.main, compatibleWith: nil)
+    }
+    
+    func handleImageDetection(imageAnchor: ARImageAnchor) {
+        let imageName = imageAnchor.referenceImage.name ?? "unknown"
+        let transformation = serializeMatrix(imageAnchor.transform)
+        
+        print("🔍 iOS Image detected: \(imageName)")
+        print("Transform: \(imageAnchor.transform)")
+        print("Reference image size: \(imageAnchor.referenceImage.physicalSize)")
+        
+        let arguments: [String: Any] = [
+            "imageName": imageName,
+            "transformation": transformation
+        ]
+        
+        sessionManagerChannel.invokeMethod("onImageDetected", arguments: arguments)
+        print("✅ Sent image detection to Flutter: \(imageName)")
     }
 }
 

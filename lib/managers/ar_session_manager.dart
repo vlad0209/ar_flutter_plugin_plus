@@ -11,6 +11,8 @@ import 'package:vector_math/vector_math_64.dart';
 
 // Type definitions to enforce a consistent use of the API
 typedef ARHitResultHandler = void Function(List<ARHitTestResult> hits);
+typedef ARImageDetectionResultHandler = void Function(
+    String imageName, Matrix4 transformation);
 
 /// Manages the session configuration, parameters and events of an [ARView]
 class ARSessionManager {
@@ -28,6 +30,9 @@ class ARSessionManager {
 
   /// Receives hit results from user taps with tracked planes or feature points
   late ARHitResultHandler onPlaneOrPointTap;
+
+  /// Receives detection results when tracked images are detected
+  ARImageDetectionResultHandler? onImageDetected;
 
   ARSessionManager(int id, this.buildContext, this.planeDetectionConfig,
       {this.debug = false}) {
@@ -126,6 +131,15 @@ class ARSessionManager {
               return ARHitTestResult.fromJson(e);
             }).toList();
             onPlaneOrPointTap(hitTestResults);
+          }
+          break;
+        case 'onImageDetected':
+          if (onImageDetected != null) {
+            final arguments = call.arguments as Map<dynamic, dynamic>;
+            final imageName = arguments['imageName'] as String;
+            final transformation = MatrixConverter()
+                .fromJson(arguments['transformation'] as List<dynamic>);
+            onImageDetected!(imageName, transformation);
           }
           break;
         case 'dispose':

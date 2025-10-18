@@ -542,6 +542,11 @@ internal class AndroidARView(
         }
         arSceneView.session?.configure(config)
 
+        // Configure image tracking
+        argTrackingImagePaths?.let { imagePaths ->
+            setupImageTracking(imagePaths)
+        }
+
         // Configure whether or not detected planes should be shown
         arSceneView.planeRenderer.isVisible = if (argShowPlanes == true) true else false
         // Create custom plane renderer (use supplied texture & increase radius)
@@ -647,6 +652,9 @@ internal class AndroidARView(
         val updatedAnchors = arSceneView.arFrame!!.updatedAnchors
         // Notify the cloudManager of all the updates.
         if (this::cloudAnchorHandler.isInitialized) {cloudAnchorHandler.onUpdate(updatedAnchors)}
+
+        // Check for image tracking
+        checkForTrackedImages()
 
         if (keepNodeSelected && transformationSystem.selectedNode != null && transformationSystem.selectedNode!!.isTransforming){
             // If the selected node is currently transforming, we want to deselect it as soon as the transformation is done
@@ -956,6 +964,123 @@ internal class AndroidARView(
                     sessionManagerChannel.invokeMethod("onError", listOf("Error while registering downloaded anchor at the AR Flutter plugin"))
                 }
             })
+        }
+    }
+
+    private fun checkForTrackedImages() {
+        val frame = arSceneView.arFrame ?: return
+        
+        // Get all tracked images
+        val updatedAugmentedImages = frame.getUpdatedTrackables(AugmentedImage::class.java)
+        
+        // Debug: Log how many images we're checking
+        if (updatedAugmentedImages.isNotEmpty()) {
+            Log.d(TAG, "Checking ${updatedAugmentedImages.size} augmented images")
+        }
+        
+        for (augmentedImage in updatedAugmentedImages) {
+            when (augmentedImage.trackingState) {
+                TrackingState.TRACKING -> {
+                    // Image is currently being tracked
+                    val imageName = augmentedImage.name ?: "unknown"
+                    val centerPose = augmentedImage.centerPose
+                    
+                    // Convert pose to transformation matrix and send to Flutter
+                    val transformation = serializePose(centerPose)
+                    
+                    val arguments = HashMap<String, Any>()
+                    arguments["imageName"] = imageName
+                    arguments["transformation"] = transformation
+                    
+                    sessionManagerChannel.invokeMethod("onImageDetected", arguments)
+                    
+                    Log.d(TAG, "Image detected: $imageName")
+                }
+                TrackingState.PAUSED -> {
+                    // Image was tracked but is now paused (e.g., moved out of view)
+                    Log.d(TAG, "Image tracking paused: ${augmentedImage.name}")
+                }
+                TrackingState.STOPPED -> {
+                    // Image tracking stopped
+                    Log.d(TAG, "Image tracking stopped: ${augmentedImage.name}")
+                }
+            }
+        }
+    }
+
+    private fun setupImageTracking(imagePaths: List<String>) {
+        try {
+            val session = arSceneView.session ?: return
+            val config = session.config
+            
+            // Create AugmentedImageDatabase
+            val imageDatabase = AugmentedImageDatabase(session)
+            
+            for (imagePath in imagePaths) {
+                try {
+                    // Get path to given Flutter asset
+                    val loader = FlutterInjector.instance().flutterLoader()
+                    val key = loader.getLookupKeyForAsset(imagePath)
+                    
+                    Log.d(TAG, "🔍 Loading image - Original path: $imagePath")
+                    Log.d(TAG, "🔍 Loading image - Asset key: $key")
+                    
+                    // Load bitmap from assets
+                    val inputStream = viewContext.assets.open(key)
+                    Log.d(TAG, "🔍 Input stream available: ${inputStream.available()} bytes")
+                    
+                    val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                    inputStream.close()
+                    
+                    Log.d(TAG, "🔍 Bitmap result: ${if (bitmap != null) "SUCCESS (${bitmap.width}x${bitmap.height})" else "NULL"}")
+                    
+                    if (bitmap != null) {
+                        // Extract name from path (remove extension and path)
+                        val imageName = imagePath.substringAfterLast("/").substringBeforeLast(".")
+                        
+                        // Log image details for debugging
+                        Log.d(TAG, "Loading image: $imageName, size: ${bitmap.width}x${bitmap.height}")
+                        
+                        // Set physical width (important for detection quality)
+                        val physicalWidth = 0.2f // 20cm - adjust based on your actual printed image size
+                        val index = imageDatabase.addImage(imageName, bitmap, physicalWidth)
+                        
+                        if (index != -1) {
+                            Log.d(TAG, "Successfully added image to database: $imageName (index: $index)")
+                        } else {
+                            Log.e(TAG, "Failed to add image to database: $imageName")
+                        }
+                    } else {
+                        Log.e(TAG, "Failed to load bitmap for: $imagePath")
+                    }
+                } catch (e: Exception) {
+                    when (e.javaClass.simpleName) {
+                        "ImageInsufficientQualityException" -> {
+                            Log.e(TAG, "❌ Image $imagePath has insufficient quality for AR tracking!")
+                            Log.e(TAG, "💡 Image needs more visual features like:")
+                            Log.e(TAG, "   - High contrast areas")
+                            Log.e(TAG, "   - Rich corners and edges") 
+                            Log.e(TAG, "   - Varied textures (avoid solid colors)")
+                            Log.e(TAG, "   - Asymmetric design")
+                            Log.e(TAG, "   - Sharp details")
+                            sessionManagerChannel.invokeMethod("onError", listOf("Image '$imagePath' has insufficient quality for AR tracking. Use images with more visual features like high contrast, corners, and varied textures."))
+                        }
+                        else -> {
+                            Log.e(TAG, "Error loading image $imagePath: ${e.message}")
+                            Log.e(TAG, "Exception details: ${e.javaClass.simpleName}")
+                        }
+                    }
+                    e.printStackTrace()
+                }
+            }
+            
+            config.augmentedImageDatabase = imageDatabase
+            session.configure(config)
+            Log.d(TAG, "Image tracking configured with ${imagePaths.size} images")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up image tracking: ${e.message}")
+            sessionManagerChannel.invokeMethod("onError", listOf("Error setting up image tracking: ${e.message}"))
         }
     }
 
