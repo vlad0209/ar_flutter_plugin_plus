@@ -29,6 +29,6 @@ flutter:
     platforms:
       android:
         package: io.carius.lars.ar_flutter_plugin
-        pluginClass: ArFlutterPlugin
+        pluginClass: ArFlutterPluginPlus
       ios:
-        pluginClass: ArFlutterPlugin
+        pluginClass: ArFlutterPluginPlus

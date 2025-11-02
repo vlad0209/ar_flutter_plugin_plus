@@ -18,6 +18,6 @@ void main() {
   });
 
   test('getPlatformVersion', () async {
-    expect(await ArFlutterPlugin.platformVersion, '42');
+    expect(await ArFlutterPluginPlus.platformVersion, '42');
   });
 }
