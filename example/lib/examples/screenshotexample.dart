@@ -1,15 +1,15 @@
-import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
-import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
-import 'package:ar_flutter_plugin/models/ar_anchor.dart';
+import 'package:ar_flutter_plugin_plus/managers/ar_location_manager.dart';
+import 'package:ar_flutter_plugin_plus/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin_plus/managers/ar_object_manager.dart';
+import 'package:ar_flutter_plugin_plus/managers/ar_anchor_manager.dart';
+import 'package:ar_flutter_plugin_plus/models/ar_anchor.dart';
 import 'package:flutter/material.dart';
-import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
-import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
-import 'package:ar_flutter_plugin/datatypes/node_types.dart';
-import 'package:ar_flutter_plugin/datatypes/hittest_result_types.dart';
-import 'package:ar_flutter_plugin/models/ar_node.dart';
-import 'package:ar_flutter_plugin/models/ar_hittest_result.dart';
+import 'package:ar_flutter_plugin_plus/ar_flutter_plugin_plus.dart';
+import 'package:ar_flutter_plugin_plus/datatypes/config_planedetection.dart';
+import 'package:ar_flutter_plugin_plus/datatypes/node_types.dart';
+import 'package:ar_flutter_plugin_plus/datatypes/hittest_result_types.dart';
+import 'package:ar_flutter_plugin_plus/models/ar_node.dart';
+import 'package:ar_flutter_plugin_plus/models/ar_hittest_result.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 class ScreenshotWidget extends StatefulWidget {
@@ -38,10 +38,8 @@ class _ScreenshotWidgetState extends State<ScreenshotWidget> {
         appBar: AppBar(
           title: const Text('Screenshots'),
         ),
-        body: 
-        Container(
-            child:
-          Stack(children: [
+        body: Container(
+            child: Stack(children: [
           ARView(
             onARViewCreated: onARViewCreated,
             planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
@@ -88,10 +86,10 @@ class _ScreenshotWidgetState extends State<ScreenshotWidget> {
       this.arObjectManager.removeNode(node);
     });*/
     // anchors.forEach((anchor)
-    for (var anchor in anchors)
-     {
+    for (var anchor in anchors) {
       arAnchorManager!.removeAnchor(anchor);
-    };
+    }
+    ;
     anchors = [];
   }
 
@@ -132,7 +130,7 @@ class _ScreenshotWidgetState extends State<ScreenshotWidget> {
             rotation: Vector4(1.0, 0.0, 0.0, 0.0));
         bool? didAddNodeToAnchor =
             await arObjectManager!.addNode(newNode, planeAnchor: newAnchor);
-        
+
         if (didAddNodeToAnchor != null && didAddNodeToAnchor) {
           nodes.add(newNode);
         } else {

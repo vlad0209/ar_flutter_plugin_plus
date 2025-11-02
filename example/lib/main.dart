@@ -1,15 +1,15 @@
-import 'package:ar_flutter_plugin_example/examples/externalmodelmanagementexample.dart';
-import 'package:ar_flutter_plugin_example/examples/image_marker_tracking.dart';
-import 'package:ar_flutter_plugin_example/examples/objectsonplanesexample.dart';
+import 'package:ar_flutter_plugin_plus_example/examples/externalmodelmanagementexample.dart';
+import 'package:ar_flutter_plugin_plus_example/examples/image_marker_tracking.dart';
+import 'package:ar_flutter_plugin_plus_example/examples/objectsonplanesexample.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart';
-import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
+import 'package:ar_flutter_plugin_plus/ar_flutter_plugin_plus.dart';
 
-import 'package:ar_flutter_plugin_example/examples/cloudanchorexample.dart';
-import 'package:ar_flutter_plugin_example/examples/localandwebobjectsexample.dart';
-import 'package:ar_flutter_plugin_example/examples/debugoptionsexample.dart';
+import 'package:ar_flutter_plugin_plus_example/examples/cloudanchorexample.dart';
+import 'package:ar_flutter_plugin_plus_example/examples/localandwebobjectsexample.dart';
+import 'package:ar_flutter_plugin_plus_example/examples/debugoptionsexample.dart';
 
 import 'examples/objectgesturesexample.dart';
 import 'examples/screenshotexample.dart';
