@@ -1,8 +1,8 @@
 //
 //  JWTGenerator.swift
-//  ar_flutter_plugin
+//  ar_flutter_plugin_plus
 //
-//  Created by Lars Carius on 08.04.21.
+//  Created by Franz Graaf on 02.11.25.
 //
 
 import Foundation
