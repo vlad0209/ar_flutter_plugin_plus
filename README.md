@@ -1,6 +1,6 @@
 # ar_flutter_plugin_plus
 
-[![pub package](https://img.shields.io/pub/v/ar_flutter_plugin_plua.svg)](https://pub.dev/packages/ar_flutter_plugin_plua)
+[![pub package](https://img.shields.io/pub/v/ar_flutter_plugin_plus.svg)](https://pub.dev/packages/ar_flutter_plugin_plus)
 
 First of all, a big thank you to Lars Carius, who developed the original ar_flutter_plugin (https://pub.dev/packages/ar_flutter_plugin).
 This plugin is based on his great plugin with extended features.
