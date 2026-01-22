@@ -29,6 +29,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
   ARNode? webObjectNode;
   ARNode? fileSystemNode;
   HttpClient? httpClient;
+  bool fileDownloadReady = false;
 
   @override
   void dispose() {
@@ -123,6 +124,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
     File file = new File('$dir/$filename');
     await file.writeAsBytes(bytes);
     print("Downloading finished, path: " + '$dir/$filename');
+    fileDownloadReady = true;
     return file;
   }
 
@@ -180,9 +182,22 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
       this.arObjectManager!.removeNode(this.fileSystemNode!);
       this.fileSystemNode = null;
     } else {
+      if (!fileDownloadReady) {
+        this.arSessionManager?.onError(
+            "Model is still downloading. Please try again in a moment.");
+        return;
+      }
+      final dir = (await getApplicationDocumentsDirectory()).path;
+      final filePath = File('$dir/LocalDuck.glb');
+      if (!await filePath.exists()) {
+        this
+            .arSessionManager
+            ?.onError("Model file not found. Please retry download.");
+        return;
+      }
       var newNode = ARNode(
           type: NodeType.fileSystemAppFolderGLB,
-          uri: "LocalDuck.glb",
+          uri: filePath.path,
           scale: Vector3(0.2, 0.2, 0.2));
       //Alternative to use type fileSystemAppFolderGLTF2:
       /*var newNode = ARNode(

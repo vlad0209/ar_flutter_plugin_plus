@@ -37,88 +37,50 @@ class _ImageMarkerTrackingState extends State<ImageMarkerTracking> {
     this.arLocationManager = arLocationManager;
 
     this.arSessionManager!.onInitialize(
-      showFeaturePoints: false,
-      showPlanes: false,
-      customPlaneTexturePath: "Images/triangle.png",
-      showWorldOrigin: false,
-      handleTaps: false,
-      trackingImagePaths: [
-        "Images/augmented-images-earth.jpg",
-      ],
-    );
+          showFeaturePoints: false,
+          showPlanes: false,
+          customPlaneTexturePath: "Images/triangle.png",
+          showWorldOrigin: false,
+          handleTaps: false,
+          trackingImagePaths: [
+            "Images/augmented-images-earth.jpg",
+          ],
+          continuousImageTracking: false,
+          imageTrackingUpdateIntervalMs: 100,
+        );
     this.arObjectManager!.onInitialize();
     this.arSessionManager!.onImageDetected = onImageDetected;
   }
 
   void onImageDetected(String imageName, Matrix4 transformation) {
-    print("Image detected: $imageName");
-
-    // Convert transformation matrix to position
-    Vector3 position = transformation.getTranslation();
-    print("Image '$imageName' detected at position: $position");
-
-    // Automatically place an object on the detected image
     placeObjectOnImage(imageName, transformation);
   }
 
   Future<void> placeObjectOnImage(
       String imageName, Matrix4 transformation) async {
     try {
-      // Create a new anchor at the image position
-      var imageAnchor = ARPlaneAnchor(transformation: transformation);
+      var modelUrl = "Models/Chicken_01/Chicken_01.gltf";
 
-      bool? didAddAnchor = await arAnchorManager!.addAnchor(imageAnchor);
-      if (didAddAnchor == true) {
-        // Remove any existing anchor and node
-        if (anchor != null) {
-          arAnchorManager?.removeAnchor(anchor!);
-        }
-        if (node != null) {
-          arObjectManager?.removeNode(node!);
-        }
+      double scale = 0.005;
+      final modelTransform = Matrix4.fromFloat64List(transformation.storage);
+      modelTransform.translate(0.0, 0.0, 0.02);
+      modelTransform.scale(scale, scale, scale);
 
-        anchor = imageAnchor;
-
-        var modelUrl = "Models/Chicken_01/Chicken_01.gltf";
-
-        // Create a 3D object to place on the image
-        double scale = 0.05;
+      if (node == null) {
         var imageNode = ARNode(
           type: NodeType.localGLTF2,
           uri: modelUrl,
-          transformation: Matrix4(
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-            scale,
-          ),
-          position: Vector3(0.0, 0.0, 0.0),
-          rotation: Vector4(1.0, 0.0, 0.0, 0.0),
+          transformation: modelTransform,
         );
 
-        bool? didAddNodeToAnchor =
-            await arObjectManager!.addNode(imageNode, planeAnchor: imageAnchor);
-
-        if (didAddNodeToAnchor == true) {
+        bool? didAddNode = await arObjectManager!.addNode(imageNode);
+        if (didAddNode == true) {
           node = imageNode;
-          print("Successfully placed object on image: $imageName");
         } else {
-          //arSessionManager!.onError("Adding Node to Image Anchor failed");
+          //arSessionManager!.onError("Adding Node failed");
         }
       } else {
-        //arSessionManager!.onError("Adding Image Anchor failed");
+        node!.transform = modelTransform;
       }
     } catch (e) {
       print("Error placing object on image: $e");
@@ -127,6 +89,14 @@ class _ImageMarkerTrackingState extends State<ImageMarkerTracking> {
 
   @override
   void dispose() {
+    if (node != null) {
+      arObjectManager?.removeNode(node!);
+      node = null;
+    }
+    if (anchor != null) {
+      arAnchorManager?.removeAnchor(anchor!);
+      anchor = null;
+    }
     super.dispose();
     arSessionManager!.dispose();
   }

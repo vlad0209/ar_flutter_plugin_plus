@@ -2,6 +2,11 @@
 
 [![pub package](https://img.shields.io/pub/v/ar_flutter_plugin_plus.svg)](https://pub.dev/packages/ar_flutter_plugin_plus)
 
+!!!
+There is currently a bug in the ARCore library on Android which interfers with the tracking functionality on some devices.
+To achieve a smooth tracking the app must be build with "debuggable false" in build.gradle. More about it in this github issue: https://github.com/google-ar/arcore-android-sdk/issues/1750
+!!!
+
 First of all, a big thank you to Lars Carius, who developed the original ar_flutter_plugin (https://pub.dev/packages/ar_flutter_plugin).
 This plugin is based on his great plugin with extended features.
 

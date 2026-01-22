@@ -1,90 +1,93 @@
 package tech.graaf.franz.ar_flutter_plugin_plus.Serialization
 
-import com.google.ar.sceneform.math.Quaternion
-import com.google.ar.sceneform.math.Vector3
+import kotlin.math.sqrt
 
-fun deserializeMatrix4(transform: ArrayList<Double>): Triple<Vector3, Vector3, Quaternion> {
-  val scale = Vector3()
-  val position = Vector3()
-  val rotation: Quaternion
+data class TransformComponents(
+  val scale: FloatArray,
+  val position: FloatArray,
+  val rotation: FloatArray
+)
 
-  // Get the scale by calculating the length of each 3-dimensional column vector of the
-  // transformation matrix
-  // See
-  // https://math.stackexchange.com/questions/237369/given-this-transformation-matrix-how-do-i-decompose-it-into-translation-rotati for a mathematical explanation
-  scale.x = Vector3(transform[0].toFloat(), transform[1].toFloat(), transform[2].toFloat()).length()
-  scale.y = Vector3(transform[4].toFloat(), transform[5].toFloat(), transform[6].toFloat()).length()
-  scale.z =
-      Vector3(transform[8].toFloat(), transform[9].toFloat(), transform[10].toFloat()).length()
+fun deserializeMatrix4(transform: ArrayList<Double>): TransformComponents {
+  // Calculate scale from transformation matrix
+  val scaleX = sqrt(
+    transform[0] * transform[0] +
+      transform[1] * transform[1] +
+      transform[2] * transform[2]
+  ).toFloat()
+  val scaleY = sqrt(
+    transform[4] * transform[4] +
+      transform[5] * transform[5] +
+      transform[6] * transform[6]
+  ).toFloat()
+  val scaleZ = sqrt(
+    transform[8] * transform[8] +
+      transform[9] * transform[9] +
+      transform[10] * transform[10]
+  ).toFloat()
 
-  // Get the translation by taking the last column of the transformation matrix
-  // See
-  // https://math.stackexchange.com/questions/237369/given-this-transformation-matrix-how-do-i-decompose-it-into-translation-rotati for a mathematical explanation
-  position.x = transform[12].toFloat()
-  position.y = transform[13].toFloat()
-  position.z = transform[14].toFloat()
+  val scale = floatArrayOf(scaleX, scaleY, scaleZ)
+  val position = floatArrayOf(transform[12].toFloat(), transform[13].toFloat(), transform[14].toFloat())
+  var qx = 0.0
+  var qy = 0.0
+  var qz = 0.0
+  var qw = 0.0
 
   // Get the rotation matrix from the transformation matrix by normalizing with the scales
-  // See
-  // https://math.stackexchange.com/questions/237369/given-this-transformation-matrix-how-do-i-decompose-it-into-translation-rotati for a mathematical explanation
   val rowWiseMatrix =
       floatArrayOf(
-          transform[0].toFloat() / scale.x,
-          transform[4].toFloat() / scale.y,
-          transform[8].toFloat() / scale.z,
-          transform[1].toFloat() / scale.x,
-          transform[5].toFloat() / scale.y,
-          transform[9].toFloat() / scale.z,
-          transform[2].toFloat() / scale.x,
-          transform[6].toFloat() / scale.y,
-          transform[10].toFloat() / scale.z)
+          transform[0].toFloat() / scaleX,
+          transform[4].toFloat() / scaleY,
+          transform[8].toFloat() / scaleZ,
+          transform[1].toFloat() / scaleX,
+          transform[5].toFloat() / scaleY,
+          transform[9].toFloat() / scaleZ,
+          transform[2].toFloat() / scaleX,
+          transform[6].toFloat() / scaleY,
+          transform[10].toFloat() / scaleZ)
 
   // Calculate the quaternion from the rotation matrix
-  // See https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/ for
-  // a mathematical explanation
   val trace = rowWiseMatrix[0] + rowWiseMatrix[4] + rowWiseMatrix[8]
 
-  var w = 0.0
-  var x = 0.0
-  var y = 0.0
-  var z = 0.0
-
   if (trace > 0) {
-    val scalefactor = Math.sqrt(trace + 1.0) * 2
-    w = 0.25 * scalefactor
-    x = (rowWiseMatrix[7] - rowWiseMatrix[5]) / scalefactor
-    y = (rowWiseMatrix[2] - rowWiseMatrix[6]) / scalefactor
-    z = (rowWiseMatrix[3] - rowWiseMatrix[1]) / scalefactor
+    val scalefactor = sqrt(trace + 1.0) * 2
+    qw = 0.25 * scalefactor
+    qx = (rowWiseMatrix[7] - rowWiseMatrix[5]) / scalefactor
+    qy = (rowWiseMatrix[2] - rowWiseMatrix[6]) / scalefactor
+    qz = (rowWiseMatrix[3] - rowWiseMatrix[1]) / scalefactor
   } else if ((rowWiseMatrix[0] > rowWiseMatrix[4]) && (rowWiseMatrix[0] > rowWiseMatrix[8])) {
-    val scalefactor = Math.sqrt(1.0 + rowWiseMatrix[0] - rowWiseMatrix[4] - rowWiseMatrix[8]) * 2
-    w = (rowWiseMatrix[7] - rowWiseMatrix[5]) / scalefactor
-    x = 0.25 * scalefactor
-    y = (rowWiseMatrix[1] + rowWiseMatrix[3]) / scalefactor
-    z = (rowWiseMatrix[2] + rowWiseMatrix[6]) / scalefactor
+    val scalefactor = sqrt(1.0 + rowWiseMatrix[0] - rowWiseMatrix[4] - rowWiseMatrix[8]) * 2
+    qw = (rowWiseMatrix[7] - rowWiseMatrix[5]) / scalefactor
+    qx = 0.25 * scalefactor
+    qy = (rowWiseMatrix[1] + rowWiseMatrix[3]) / scalefactor
+    qz = (rowWiseMatrix[2] + rowWiseMatrix[6]) / scalefactor
   } else if (rowWiseMatrix[4] > rowWiseMatrix[8]) {
-    val scalefactor = Math.sqrt(1.0 + rowWiseMatrix[4] - rowWiseMatrix[0] - rowWiseMatrix[8]) * 2
-    w = (rowWiseMatrix[2] - rowWiseMatrix[6]) / scalefactor
-    x = (rowWiseMatrix[1] + rowWiseMatrix[3]) / scalefactor
-    y = 0.25 * scalefactor
-    z = (rowWiseMatrix[5] + rowWiseMatrix[7]) / scalefactor
+    val scalefactor = sqrt(1.0 + rowWiseMatrix[4] - rowWiseMatrix[0] - rowWiseMatrix[8]) * 2
+    qw = (rowWiseMatrix[2] - rowWiseMatrix[6]) / scalefactor
+    qx = (rowWiseMatrix[1] + rowWiseMatrix[3]) / scalefactor
+    qy = 0.25 * scalefactor
+    qz = (rowWiseMatrix[5] + rowWiseMatrix[7]) / scalefactor
   } else {
-    val scalefactor = Math.sqrt(1.0 + rowWiseMatrix[8] - rowWiseMatrix[0] - rowWiseMatrix[4]) * 2
-    w = (rowWiseMatrix[3] - rowWiseMatrix[1]) / scalefactor
-    x = (rowWiseMatrix[2] + rowWiseMatrix[6]) / scalefactor
-    y = (rowWiseMatrix[5] + rowWiseMatrix[7]) / scalefactor
-    z = 0.25 * scalefactor
+    val scalefactor = sqrt(1.0 + rowWiseMatrix[8] - rowWiseMatrix[0] - rowWiseMatrix[4]) * 2
+    qw = (rowWiseMatrix[3] - rowWiseMatrix[1]) / scalefactor
+    qx = (rowWiseMatrix[2] + rowWiseMatrix[6]) / scalefactor
+    qy = (rowWiseMatrix[5] + rowWiseMatrix[7]) / scalefactor
+    qz = 0.25 * scalefactor
   }
 
-  val inputRotation = Quaternion(x.toFloat(), y.toFloat(), z.toFloat(), w.toFloat())
+  // Apply 180-degree corrections around Y and Z: (qx,qy,qz,qw) * (0,1,0,0) * (0,0,1,0)
+  // First multiply by Y-180 (0,1,0,0)
+  var rx = qx * 0.0 + qw * 1.0 + qy * 0.0 - qz * 0.0
+  var ry = qy * 0.0 + qw * 0.0 + qz * 1.0 - qx * 0.0
+  var rz = qz * 0.0 + qw * 0.0 + qx * 0.0 - qy * 1.0
+  var rw = qw * 0.0 - qx * 1.0 - qy * 0.0 - qz * 0.0
 
-  // Rotate by an additional 180 degrees around z and y to compensate for the different model
-  // coordinate system definition used in Sceneform (in comparison to Scenekit and the definition
-  // used for the Flutter API of this plugin)
-  val correction_z = Quaternion(0.0f, 0.0f, 1.0f, 180f)
-  val correction_y = Quaternion(0.0f, 1.0f, 0.0f, 180f)
+  // Then multiply by Z-180 (0,0,1,0)
+  val fx = rx * 0.0 + rw * 0.0 + ry * 1.0 - rz * 0.0
+  val fy = ry * 0.0 + rw * 0.0 + rz * 0.0 - rx * 1.0
+  val fz = rz * 0.0 + rw * 1.0 + rx * 0.0 - ry * 0.0
+  val fw = rw * 0.0 - rx * 0.0 - ry * 1.0 - rz * 0.0
 
-  // Calculate resulting rotation quaternion by multiplying input and corrections
-  rotation = Quaternion.multiply(Quaternion.multiply(inputRotation, correction_y), correction_z)
-
-  return Triple(scale, position, rotation)
+  val rotationArray = floatArrayOf(fx.toFloat(), fy.toFloat(), fz.toFloat(), fw.toFloat())
+  return TransformComponents(scale, position, rotationArray)
 }

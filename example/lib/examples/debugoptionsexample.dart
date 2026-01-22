@@ -21,6 +21,20 @@ class _DebugOptionsWidgetState extends State<DebugOptionsWidget> {
   bool _showAnimatedGuide = true;
   String _planeTexturePath = "Images/triangle.png";
   bool _handleTaps = false;
+  late final Widget _arView;
+  String _trackingState = 'UNKNOWN';
+  String _trackingReason = 'NONE';
+
+  @override
+  void initState() {
+    super.initState();
+    _arView = ARView(
+      key: const ValueKey('debug_ar_view'),
+      onARViewCreated: onARViewCreated,
+      planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
+      showPlatformType: true,
+    );
+  }
 
   @override
   void dispose() {
@@ -37,20 +51,23 @@ class _DebugOptionsWidgetState extends State<DebugOptionsWidget> {
         body: SafeArea(
           child: Container(
               child: Stack(children: [
-            ARView(
-              onARViewCreated: onARViewCreated,
-              planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
-              showPlatformType: true,
-            ),
+            _arView,
             Align(
               alignment: FractionalOffset.bottomRight,
               child: Container(
                 width: MediaQuery.of(context).size.width * 0.5,
-                color: Color(0xFFFFFFF).withOpacity(0.5),
+                color: Color(0xFFFFFFF).withValues(alpha: 0.5),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    /*Padding(
+                      padding: const EdgeInsets.only(right: 12, top: 8),
+                      child: Text(
+                        'Tracking: $_trackingState ($_trackingReason)',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),*/
                     SwitchListTile(
                       title: const Text('Feature Points'),
                       value: _showFeaturePoints,
@@ -96,6 +113,14 @@ class _DebugOptionsWidgetState extends State<DebugOptionsWidget> {
       ARLocationManager arLocationManager) {
     this.arSessionManager = arSessionManager;
     this.arObjectManager = arObjectManager;
+    this.arSessionManager!.onTrackingStateChanged = (state, reason) {
+      if (mounted) {
+        setState(() {
+          _trackingState = state;
+          _trackingReason = reason;
+        });
+      }
+    };
 
     this.arSessionManager!.onInitialize(
           showFeaturePoints: _showFeaturePoints,

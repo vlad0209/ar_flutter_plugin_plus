@@ -11,6 +11,7 @@ import 'package:vector_math/vector_math_64.dart';
 typedef ARHitResultHandler = void Function(List<ARHitTestResult> hits);
 typedef ARImageDetectionResultHandler = void Function(
     String imageName, Matrix4 transformation);
+typedef ARTrackingStateHandler = void Function(String state, String reason);
 
 /// Manages the session configuration, parameters and events of an [ARView]
 class ARSessionManager {
@@ -31,6 +32,9 @@ class ARSessionManager {
 
   /// Receives detection results when tracked images are detected
   ARImageDetectionResultHandler? onImageDetected;
+
+  /// Receives tracking state updates from the platform
+  ARTrackingStateHandler? onTrackingStateChanged;
 
   ARSessionManager(int id, this.buildContext, this.planeDetectionConfig,
       {this.debug = false}) {
@@ -135,6 +139,14 @@ class ARSessionManager {
             onImageDetected!(imageName, transformation);
           }
           break;
+        case 'onTrackingState':
+          if (onTrackingStateChanged != null) {
+            final arguments = call.arguments as Map<dynamic, dynamic>;
+            final state = arguments['state'] as String;
+            final reason = arguments['reason'] as String? ?? 'NONE';
+            onTrackingStateChanged!(state, reason);
+          }
+          break;
         case 'dispose':
           _channel.invokeMethod<void>("dispose");
           break;
@@ -154,6 +166,7 @@ class ARSessionManager {
   /// the assets are correctly registered in the pubspec.yaml of the parent app (e.g. the ./example app in this plugin's repo)
   onInitialize({
     bool showAnimatedGuide = true,
+    bool autoHideCoachingOverlay = true,
     bool showFeaturePoints = false,
     bool showPlanes = true,
     String? customPlaneTexturePath,
@@ -162,9 +175,12 @@ class ARSessionManager {
     bool handlePans = false, // nodes are not draggable by default
     bool handleRotation = false, // nodes can not be rotated by default
     List<String>? trackingImagePaths,
+    bool continuousImageTracking = false,
+    int imageTrackingUpdateIntervalMs = 100,
   }) {
     _channel.invokeMethod<void>('init', {
       'showAnimatedGuide': showAnimatedGuide,
+      'autoHideCoachingOverlay': autoHideCoachingOverlay,
       'showFeaturePoints': showFeaturePoints,
       'planeDetectionConfig': planeDetectionConfig.index,
       'showPlanes': showPlanes,
@@ -174,7 +190,27 @@ class ARSessionManager {
       'handlePans': handlePans,
       'handleRotation': handleRotation,
       'trackingImagePaths': trackingImagePaths,
+      'continuousImageTracking': continuousImageTracking,
+      'imageTrackingUpdateIntervalMs': imageTrackingUpdateIntervalMs,
     });
+  }
+
+  /// Update image tracking settings after initialization.
+  /// Pass null for any parameter you don't want to change.
+  Future<void> updateImageTrackingSettings({
+    bool? continuousImageTracking,
+    int? imageTrackingUpdateIntervalMs,
+    List<String>? trackingImagePaths,
+  }) async {
+    try {
+      await _channel.invokeMethod<void>('updateImageTrackingSettings', {
+        'continuousImageTracking': continuousImageTracking,
+        'imageTrackingUpdateIntervalMs': imageTrackingUpdateIntervalMs,
+        'trackingImagePaths': trackingImagePaths,
+      });
+    } catch (e) {
+      print('Error caught: ' + e.toString());
+    }
   }
 
   /// Displays the [errorMessage] in a snackbar of the parent widget

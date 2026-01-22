@@ -90,10 +90,14 @@ class _ScreenshotWidgetState extends State<ScreenshotWidget> {
   }
 
   Future<void> onRemoveEverything() async {
-    for (var anchor in anchors) {
-      arAnchorManager!.removeAnchor(anchor);
+    for (final node in nodes) {
+      arObjectManager?.removeNode(node);
     }
-    ;
+    nodes = [];
+
+    for (final anchor in anchors) {
+      arAnchorManager?.removeAnchor(anchor);
+    }
     anchors = [];
   }
 

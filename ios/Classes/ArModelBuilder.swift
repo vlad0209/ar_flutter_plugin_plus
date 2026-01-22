@@ -64,9 +64,11 @@ class ArModelBuilder: NSObject {
         let node: SCNNode = SCNNode()
 
         do {
+            print("iOS ModelBuilder: Loading GLTF from path: \(modelPath)")
             let sceneSource = try GLTFSceneSource(named: modelPath)
             scene = try sceneSource.scene()
 
+            print("iOS ModelBuilder: Scene loaded, processing \(scene.rootNode.childNodes.count) child nodes")
             for child in scene.rootNode.childNodes {
                 child.scale = SCNVector3(0.01,0.01,0.01) // Compensate for the different model dimension definitions in iOS and Android (meters vs. millimeters)
                 //child.eulerAngles.z = -.pi // Compensate for the different model coordinate definitions in iOS and Android
@@ -77,11 +79,17 @@ class ArModelBuilder: NSObject {
             node.name = name
             if let transform = transformation {
                 node.transform = deserializeMatrix4(transform)
+                print("iOS ModelBuilder: Applied transformation to node")
             }
 
+            // Make sure the node is visible and lit
+            node.castsShadow = true
+            node.isHidden = false
+            
+            print("iOS ModelBuilder: Node '\(name)' created successfully with \(node.childNodes.count) children")
             return node
         } catch {
-            print("\(error.localizedDescription)")
+            print("iOS ModelBuilder ERROR: \(error.localizedDescription)")
             return nil
         }
     }

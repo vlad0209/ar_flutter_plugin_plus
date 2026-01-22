@@ -82,9 +82,14 @@ class _ObjectsOnPlanesWidgetState extends State<ObjectsOnPlanesWidget> {
   }
 
   Future<void> onRemoveEverything() async {
-    anchors.forEach((anchor) {
-      this.arAnchorManager!.removeAnchor(anchor);
-    });
+    for (final node in nodes) {
+      arObjectManager?.removeNode(node);
+    }
+    nodes = [];
+
+    for (final anchor in anchors) {
+      arAnchorManager?.removeAnchor(anchor);
+    }
     anchors = [];
   }
 
@@ -95,8 +100,19 @@ class _ObjectsOnPlanesWidgetState extends State<ObjectsOnPlanesWidget> {
 
   Future<void> onPlaneOrPointTapped(
       List<ARHitTestResult> hitTestResults) async {
-    var singleHitTestResult = hitTestResults.firstWhere(
-        (hitTestResult) => hitTestResult.type == ARHitTestResultType.plane);
+    final planeHitResults = hitTestResults
+        .where(
+            (hitTestResult) => hitTestResult.type == ARHitTestResultType.plane)
+        .toList();
+
+    if (planeHitResults.isEmpty) {
+      this
+          .arSessionManager
+          ?.onError("No plane hit. Try moving the device to detect a plane.");
+      return;
+    }
+
+    final singleHitTestResult = planeHitResults.first;
     if (singleHitTestResult != null) {
       var newAnchor =
           ARPlaneAnchor(transformation: singleHitTestResult.worldTransform);
@@ -107,7 +123,7 @@ class _ObjectsOnPlanesWidgetState extends State<ObjectsOnPlanesWidget> {
         var newNode = ARNode(
             type: NodeType.webGLB,
             uri: GlobalVariables.arObjectUrl1,
-            scale: Vector3(0.2, 0.2, 0.2),
+            scale: Vector3(0.05, 0.05, 0.05),
             position: Vector3(0.0, 0.0, 0.0),
             rotation: Vector4(1.0, 0.0, 0.0, 0.0));
         bool? didAddNodeToAnchor = await this

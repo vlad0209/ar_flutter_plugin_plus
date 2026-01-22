@@ -94,9 +94,14 @@ class _ObjectGesturesWidgetState extends State<ObjectGesturesWidget> {
   }
 
   Future<void> onRemoveEverything() async {
-    anchors.forEach((anchor) {
-      this.arAnchorManager!.removeAnchor(anchor);
-    });
+    for (final node in nodes) {
+      arObjectManager?.removeNode(node);
+    }
+    nodes = [];
+
+    for (final anchor in anchors) {
+      arAnchorManager?.removeAnchor(anchor);
+    }
     anchors = [];
   }
 
