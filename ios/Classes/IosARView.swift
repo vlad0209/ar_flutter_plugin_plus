@@ -42,6 +42,7 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
     private var panningNodeCurrentWorldLocation: SCNVector3?
     private var lightIntensityMultiplier: CGFloat = 1.0
     private static var cachedReferenceImages: [String: Set<ARReferenceImage>] = [:]
+    private var isDisposed: Bool = false
 
     init(
         frame: CGRect,
@@ -70,6 +71,7 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
         self.sessionManagerChannel.setMethodCallHandler(self.onSessionMethodCalled)
         self.objectManagerChannel.setMethodCallHandler(self.onObjectMethodCalled)
         self.anchorManagerChannel.setMethodCallHandler(self.onAnchorMethodCalled)
+        isDisposed = false
     }
 
     private func applyLightIntensityMultiplier(_ multiplier: NSNumber?) {
@@ -88,6 +90,7 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
                 self.sessionManagerChannel.setMethodCallHandler(nil)
                 self.objectManagerChannel.setMethodCallHandler(nil)
                 self.anchorManagerChannel.setMethodCallHandler(nil)
+                isDisposed = true
                 result(nil)
             }
 
@@ -134,6 +137,7 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
             case "updateImageTrackingSettings":
                 applyImageTrackingSettings(
                     trackingImagePaths: arguments?["trackingImagePaths"] as? [String],
+                    trackingImageByteMap: arguments?["trackingImageByteMap"] as?  Dictionary<String, FlutterStandardTypedData>,
                     continuous: arguments?["continuousImageTracking"] as? Bool,
                     intervalMs: arguments?["imageTrackingUpdateIntervalMs"] as? NSNumber
                 )
@@ -376,6 +380,7 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
         // Configure image tracking
         applyImageTrackingSettings(
             trackingImagePaths: arguments["trackingImagePaths"] as? [String],
+            trackingImageByteMap: arguments["trackingImageByteMap"] as? Dictionary<String,FlutterStandardTypedData>,
             continuous: arguments["continuousImageTracking"] as? Bool,
             intervalMs: arguments["imageTrackingUpdateIntervalMs"] as? NSNumber,
             runSession: true
@@ -910,6 +915,7 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
 
     func applyImageTrackingSettings(
         trackingImagePaths: [String]?,
+        trackingImageByteMap: Dictionary<String,FlutterStandardTypedData>?,
         continuous: Bool?,
         intervalMs: NSNumber?,
         runSession: Bool = true
@@ -922,6 +928,9 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
         }
         if let trackingImagePaths = trackingImagePaths {
             setupImageTrackingAsync(imagePaths: trackingImagePaths, runSession: runSession)
+        }
+        if let trackingImageByteMap = trackingImageByteMap {
+            setupImageTrackingAsync(trackingImageByteMap: trackingImageByteMap, runSession: runSession)
         }
     }
     
@@ -965,12 +974,66 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
                 }
             }
             
-            DispatchQueue.main.async {
-                IosARView.cachedReferenceImages[cacheKey] = referenceImages
-                self.configuration.detectionImages = referenceImages
-                if runSession {
-                    self.sceneView.session.run(self.configuration)
+            if referenceImages.count > 100 && runSession {
+                let allImages = Array(referenceImages)
+                let imageBatches = stride(from: 0, to: allImages.count, by: 100).map {
+                    Array(allImages[$0..<min($0 + 100, allImages.count)])
                 }
+                self.runImageDetectionBatches(
+                    imageBatches: imageBatches,
+                    sendConfigured: true,
+                    success: success
+                )
+            } else {
+                self.runImageTrackingSetup(referenceImages: referenceImages, runSession: runSession, success: success, sendConfigured: true)
+            }
+        }
+    }
+    
+    func setupImageTrackingAsync(trackingImageByteMap: Dictionary<String,FlutterStandardTypedData>, runSession: Bool) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            var referenceImages = Set<ARReferenceImage>()
+            var success = true
+            
+            for(imageName, imageBytes) in trackingImageByteMap {
+                if let image = self.loadImageFromBytes(imageBytes: imageBytes.data) {
+                    // Create ARReferenceImage with a default physical width (you may want to make this configurable)
+                    let physicalWidth: Float = 0.2 // 20cm default width - adjust based on your actual printed image size
+                    let referenceImage = ARReferenceImage(image.cgImage!, orientation: .up, physicalWidth: CGFloat(physicalWidth))
+                    referenceImage.name = imageName
+                    
+                    referenceImages.insert(referenceImage)
+                } else {
+                    print("Failed to load image: \(imageName)")
+                    success = false
+                }
+            }
+            
+            if referenceImages.count > 100 && runSession {
+                let allImages = Array(referenceImages)
+                let imageBatches = stride(from: 0, to: allImages.count, by: 100).map {
+                    Array(allImages[$0..<min($0 + 100, allImages.count)])
+                }
+                self.runImageDetectionBatches(
+                    imageBatches: imageBatches,
+                    sendConfigured: true,
+                    success: success
+                )
+            } else {
+                self.runImageTrackingSetup(referenceImages: referenceImages, runSession: runSession, success: success, sendConfigured: true)
+            }
+        }
+    }
+    
+    private func runImageTrackingSetup(referenceImages: Set<ARReferenceImage>, runSession: Bool, success: Bool, sendConfigured: Bool) {
+        guard !isDisposed else { return }
+        
+        DispatchQueue.main.async {
+            self.configuration.detectionImages = referenceImages
+            if runSession {
+                self.sceneView.session.run(self.configuration)
+            }
+            if(sendConfigured) {
                 self.sessionManagerChannel.invokeMethod(
                     "onImageTrackingConfigured",
                     arguments: ["success": success]
@@ -978,6 +1041,28 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
             }
         }
     }
+    
+    private func runImageDetectionBatches(
+            imageBatches: [[ARReferenceImage]],
+            batchIndex: Int = 0,
+            sendConfigured: Bool = false,
+            success: Bool
+        ) {
+            guard !isDisposed else { return }
+            
+            let referenceImages: Set<ARReferenceImage> = Set(imageBatches[batchIndex])
+            runImageTrackingSetup(referenceImages: referenceImages, runSession: true, success: success, sendConfigured: sendConfigured)
+            
+            // Schedule next batch rotation
+            let nextIndex = (batchIndex + 1) % imageBatches.count
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.runImageDetectionBatches(
+                    imageBatches: imageBatches,
+                    batchIndex: nextIndex,
+                    success: success
+                )
+            }
+        }
 
     func precompileImageTrackingDatabase(imagePaths: [String], completion: @escaping (Bool) -> Void) {
         let cacheKey = imageCacheKey(imagePaths)
@@ -1021,9 +1106,15 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
         return nil
     }
     
+    func loadImageFromBytes(imageBytes: Data) -> UIImage? {
+        return UIImage(data: imageBytes)
+    }
+    
     func handleImageDetection(imageAnchor: ARImageAnchor) {
         let imageName = imageAnchor.referenceImage.name ?? "unknown"
         let transformation = serializeMatrix(imageAnchor.transform)
+        let width = imageAnchor.referenceImage.physicalSize.width
+        let height = imageAnchor.referenceImage.physicalSize.height
         
         print("iOS: Image detected - \(imageName)")
         print("iOS: Transform: \(transformation)")
@@ -1031,7 +1122,9 @@ class IosARView: NSObject, FlutterPlatformView, ARSCNViewDelegate, UIGestureReco
         
         let arguments: [String: Any] = [
             "imageName": imageName,
-            "transformation": transformation
+            "transformation": transformation,
+            "width": width,
+            "height": height
         ]
         
         DispatchQueue.main.async {
